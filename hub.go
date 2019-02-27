@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/gorilla/websocket"
+	"log"
 	"math/rand"
 	"time"
 )
@@ -42,14 +43,17 @@ func (hub *Hub) Run() {
 			}
 			node := newNode(hub, id, conn)
 			hub.nodes[id] = node
+			log.Printf("%v: connected\n", id)
 			go node.Run()
 		case id := <-hub.unregister:
 			node := hub.nodes[id]
 			if node != nil {
 				node.conn.Close()
 				delete(hub.nodes, id)
+				log.Printf("%v: disconnected\n", id)
 			}
 		case event := <-hub.api:
+			log.Printf("%v: event %v\n", event["source"], event["event"])
 			if event["event"] == "Auth.Id" {
 				hub.idHandler(event["source"])
 			}
@@ -85,8 +89,6 @@ func (hub *Hub) tokenHandler(sourceId string, targetId string, token string) {
 	result["event"] = "Auth.Token"
 	result["token"] = token
 	target.conn.WriteJSON(result)
-	go func() {
-		hub.unregister <- sourceId
-		hub.unregister <- targetId
-	}()
+	target.conn.Close()
+	source.conn.Close()
 }
